@@ -27,64 +27,84 @@
  */
 
 #include <linphone/linphonecore.h>
-
+#include <argp.h>
 #include <signal.h>
 
-static bool_t running=TRUE;
+static bool_t running = TRUE;
+static bool_t makeCall = FALSE;
 
-static void stop(int signum){
-	running=FALSE;
+static void stop(int signum)
+{
+	running = FALSE;
+}
+
+static void sigCall(int signum)
+{
+	// printf("Receive USR1");
+	makeCall = TRUE;
 }
 
 /*
  * Call state notification callback
  */
-static void call_state_changed(LinphoneCore *lc, LinphoneCall *call, LinphoneCallState cstate, const char *msg){
-	switch(cstate){
-        case LinphoneCallIncomingReceived:
-            printf("Incoming call\n");
-            int res = linphone_core_accept_call(lc, call);
-            printf("Answer phone %u", res);
-        break;
-		case LinphoneCallOutgoingRinging:
-			printf("It is now ringing remotely !\n");
+static void call_state_changed(LinphoneCore *lc, LinphoneCall *call, LinphoneCallState cstate, const char *msg)
+{
+	switch (cstate)
+	{
+	case LinphoneCallIncomingReceived:
+	{
+		// char address = 'a';
+		char *address = linphone_call_get_remote_address_as_string(call);
+		printf("Incoming call from %s\n", address);
+		int res = linphone_core_accept_call(lc, call);
+		printf("Answer phone %u", res);
 		break;
-		case LinphoneCallOutgoingEarlyMedia:
-			printf("Receiving some early media\n");
+	}
+	case LinphoneCallOutgoingRinging:
+		printf("It is now ringing remotely !\n");
 		break;
-		case LinphoneCallConnected:
-			printf("We are connected !\n");
+	case LinphoneCallOutgoingEarlyMedia:
+		printf("Receiving some early media\n");
 		break;
-		case LinphoneCallStreamsRunning:
-			printf("Media streams established !\n");
+	case LinphoneCallConnected:
+		printf("We are connected !\n");
 		break;
-		case LinphoneCallEnd:
-			printf("Call is terminated.\n");
+	case LinphoneCallStreamsRunning:
+		printf("Media streams established !\n");
 		break;
-		case LinphoneCallError:
-			printf("Call failure !");
+	case LinphoneCallEnd:
+		printf("Call is terminated.\n");
 		break;
-		default:
-			printf("Unhandled notification %i\n",cstate);
+	case LinphoneCallError:
+		printf("Call failure !");
+		break;
+	default:
+		printf("Unhandled notification %i\n", cstate);
 	}
 }
 
-static void dtmf_received(LinphoneCore* lc, LinphoneCall *call, int dtmf) {
-    printf("Receive dtmf %u\n", dtmf);
+static void dtmf_received(LinphoneCore *lc, LinphoneCall *call, int dtmf)
+{
+	printf("Receive dtmf %d\n", dtmf);
 }
 
-int main(int argc, char *argv[]){
-	LinphoneCoreVTable vtable={0};
+int main(int argc, char *argv[])
+{
+	LinphoneCoreVTable vtable = {0};
 	LinphoneCore *lc;
-	LinphoneCall *call=NULL;
-	const char *dest=NULL;
+	LinphoneCall *call = NULL;
+	const char *dest = NULL;
 
 	/* take the destination sip uri from the command line arguments */
-	if (argc>1){
-		dest=argv[1];
+	if (argc > 1)
+	{
+		dest = argv[1];
+		printf("Dest %s\n", dest);
+		makeCall = strcmp(argv[0],"true");
 	}
 
-	signal(SIGINT,stop);
+	signal(SIGINT, stop);
+	signal(SIGUSR1, sigCall);
 
 #ifdef DEBUG_LOGS
 	linphone_core_enable_logs(NULL); /*enable liblinphone logs.*/
@@ -94,33 +114,42 @@ int main(int argc, char *argv[]){
 	 All are optional. Here we only use the call_state_changed callbacks
 	 in order to get notifications about the progress of the call.
 	 */
-	vtable.call_state_changed=call_state_changed;
-    vtable.dtmf_received=dtmf_received;
+	vtable.call_state_changed = call_state_changed;
+	vtable.dtmf_received = dtmf_received;
 	/*
 	 Instanciate a LinphoneCore object given the LinphoneCoreVTable
 	*/
-	lc=linphone_core_new(&vtable,NULL,NULL,NULL);
+	lc = linphone_core_new(&vtable, NULL, NULL, NULL);
 
-	if (dest){
-		/*
-		 Place an outgoing call
-		*/
-		call=linphone_core_invite(lc,dest);
-		if (call==NULL){
-			printf("Could not place call to %s\n",dest);
-			goto end;
-		}else printf("Call to %s is in progress...",dest);
-		linphone_call_ref(call);
-	}
 	/* main loop for receiving notifications and doing background linphonecore work: */
-	while(running){
+	while (running)
+	{
+		if (makeCall)
+		{
+			/*
+		 	 * Place an outgoing call
+			 */
+			call = linphone_core_invite(lc, dest);
+			if (call == NULL)
+			{
+				printf("Could not place call to %s\n", dest);
+				goto end;
+			}
+			else
+				printf("Call to %s is in progress...", dest);
+			linphone_call_ref(call);
+			makeCall = FALSE;
+		}
+
 		linphone_core_iterate(lc);
 		ms_usleep(50000);
 	}
-	if (call && linphone_call_get_state(call)!=LinphoneCallEnd){
+
+	if (call && linphone_call_get_state(call) != LinphoneCallEnd)
+	{
 		/* terminate the call */
 		printf("Terminating the call...\n");
-		linphone_core_terminate_call(lc,call);
+		linphone_core_terminate_call(lc, call);
 		/*at this stage we don't need the call object */
 		linphone_call_unref(call);
 	}
