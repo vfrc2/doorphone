@@ -10,7 +10,7 @@ LIBS=-mglibc -llinphone -lmediastreamer_base
 _DEPS = 
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = main.o
+_OBJ = main.o doorphone.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 
