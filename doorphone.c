@@ -66,7 +66,7 @@ int doorphone_init(struct doorphone_options *opts)
   vtable.call_state_changed = call_state_changed;
   vtable.dtmf_received = dtmf_received;
 
-  lc = linphone_core_new(&vtable, NULL, NULL, NULL);
+  lc = linphone_core_new(&vtable, "./user.conf", NULL, NULL);
 }
 
 int doorphone_sequentialCall(int phonesc, char *phones[], int timeout, doorphone_call_end_cb *cb)
@@ -75,22 +75,26 @@ int doorphone_sequentialCall(int phonesc, char *phones[], int timeout, doorphone
   {
     if (phonesc > 0)
     {
-      char *dest = phones[0];
-      call = linphone_core_invite(lc, dest);
+      LinphoneAddress *dest = linphone_core_interpret_url(lc, phones[0]);
+      if (dest == NULL)
+      {
+        return 1;
+      }
+      call = linphone_core_invite_address(lc, dest);
       if (call == NULL)
       {
-        printf("Could not place call to %s\n", dest);
+        printf("Could not place call to %s\n", linphone_address_as_string(dest));
         return 2;
       }
       else
       {
-        printf("Call to %s is in progress...", dest);
+        printf("Call to %s is in progress...\n", linphone_address_as_string_uri_only(dest));
         linphone_call_ref(call);
       }
     }
     return 0;
   }
-  printf("Call in progress");
+  printf("Call already in progress\n");
   return 1;
 }
 

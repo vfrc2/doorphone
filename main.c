@@ -119,6 +119,7 @@ int main(int argc, char **argv)
 
     if (calling) {
       calling = 0;
+      printf("Make call to %s\n", arguments.dest[0]);
       doorphone_sequentialCall(arguments.destc, arguments.dest, arguments.timeout, &sequentialCallEnd);
     }
 
@@ -140,7 +141,7 @@ static void sequentialCallEnd() {
 }
 
 static void call() {
-  calling = 0;
+  calling = 1;
 }
 
 static void stop(int signum)
