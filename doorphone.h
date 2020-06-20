@@ -8,6 +8,7 @@ struct doorphone_options
 {
   doorphone_dtmf_cb *dtmfCb;
   doorphone_call_end_cb *callEnd;
+  char *linphoneConfig;
 };
 
 int doorphone_init(struct doorphone_options *options);

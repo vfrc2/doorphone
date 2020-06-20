@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "./doorphone.h"
 
@@ -11,15 +12,17 @@ const char *argp_program_version =
 const char *argp_program_bug_address =
     "<vfrc29@gmail.com>";
 
+#define PID_FILE_ENV_NAME "DOORPHONE_PID_FILE"
+
 /* Program documentation. */
 static char doc[] =
-    "Call sip phones from provide list, wait call ends and exit.\n,"
-    "DEST - list of sip phones, which call to (max 10)\n\v"
+    "Call sip phones from provided list, wait call ends and exit.\n\n"
+    "DEST - list of sip phones, which call to (max 10)\n\n"
     "Can be run as daemon, when don't call list immediately, "
     "wait for incoming calls and auto answer.\n"
     "To call dest phones send SIGUSR1 signal to process\n"
-    "Use env for write process pid into file\n"
-    "DOORPHONE_PID_FILE=/var/doorphone.pid";
+    "Use env for write process pid into file "
+    PID_FILE_ENV_NAME "=/var/doorphone.pid";
 
 static char args_doc[] = "[DEST...]";
 
@@ -27,6 +30,7 @@ static void stop(int signum);
 static void call();
 static void sequentialCallEnd();
 static void phoneCmd(int dtmf_cmd);
+static int writePid(char *, int);
 
 struct arguments
 {
@@ -48,40 +52,40 @@ static struct argp_option options[] = {
     {0}};
 
 static error_t
-parse_opt (int key, char *arg, struct argp_state *state)
+parse_opt(int key, char *arg, struct argp_state *state)
 {
   /* Get the input argument from argp_parse, which we
      know is a pointer to our arguments structure. */
   struct arguments *arguments = state->input;
 
   switch (key)
-    {
-    case 'd':
-      arguments->daemon = 1;
-      break;
-    case 'v':
-      arguments->verbose = 1;
-      break;
+  {
+  case 'd':
+    arguments->daemon = 1;
+    break;
+  case 'v':
+    arguments->verbose = 1;
+    break;
 
-    case ARGP_KEY_ARG:
-      if (state->arg_num >= 10)
-        /* Too many arguments. */
-        argp_usage (state);
+  case ARGP_KEY_ARG:
+    if (state->arg_num >= 10)
+      /* Too many arguments. */
+      argp_usage(state);
 
-      arguments->dest[state->arg_num] = arg;
-      arguments->destc = state->arg_num + 1;
+    arguments->dest[state->arg_num] = arg;
+    arguments->destc = state->arg_num + 1;
 
-      break;
+    break;
 
-    case ARGP_KEY_END:
-      if (state->arg_num < 1)
-        /* Not enough arguments. */
-        argp_usage (state);
-      break;
+  case ARGP_KEY_END:
+    if (state->arg_num < 1)
+      /* Not enough arguments. */
+      argp_usage(state);
+    break;
 
-    default:
-      return ARGP_ERR_UNKNOWN;
-    }
+  default:
+    return ARGP_ERR_UNKNOWN;
+  }
   return 0;
 }
 
@@ -104,20 +108,30 @@ int main(int argc, char **argv)
 
   opts.dtmfCb = &phoneCmd;
 
+  char *pidFileName = getenv(PID_FILE_ENV_NAME);
+  if (pidFileName == 0) {
+    pidFileName = "./doorphone.pid";
+  }
+
+  printf("PID: %d\n", getpid());
+  writePid(pidFileName, getpid());
+
   doorphone_init(&opts);
 
-  if (arguments.daemon == 0) {
+  if (arguments.daemon == 0)
+  {
     doorphone_sequentialCall(arguments.destc, arguments.dest, arguments.timeout, &sequentialCallEnd);
   }
 
   signal(SIGINT, stop);
-	signal(SIGUSR1, call);
+  signal(SIGUSR1, call);
 
   while (running)
   {
     doorphone_loop();
 
-    if (calling) {
+    if (calling)
+    {
       calling = 0;
       printf("Make call to %s\n", arguments.dest[0]);
       doorphone_sequentialCall(arguments.destc, arguments.dest, arguments.timeout, &sequentialCallEnd);
@@ -126,26 +140,44 @@ int main(int argc, char **argv)
     usleep(50000);
   }
 
+  printf("Exiting\n");
   doorphone_destroy();
+  writePid(pidFileName, -1);
   exit(0);
 }
 
-static void phoneCmd(int dtmf_cmd) {
+static void phoneCmd(int dtmf_cmd)
+{
   printf("Receive cmd %i", dtmf_cmd);
 }
 
-static void sequentialCallEnd() {
-  if (arguments.daemon == 0) {
+static void sequentialCallEnd()
+{
+  if (arguments.daemon == 0)
+  {
     stop(-1);
   }
 }
 
-static void call() {
+static void call()
+{
   calling = 1;
 }
 
 static void stop(int signum)
 {
-	running = 0;
+  running = 0;
 }
 
+static int writePid(char *filename, int pid)
+{
+  FILE *fp;
+
+  fp = fopen(filename, "w+");
+  if (pid > 0)
+  {
+    fprintf(fp, "%d", pid);
+  }
+  fclose(fp);
+  return 0;
+}
