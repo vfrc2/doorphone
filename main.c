@@ -116,26 +116,26 @@ int main(int argc, char **argv)
   printf("PID: %d\n", getpid());
   writePid(pidFileName, getpid());
 
+  signal(SIGINT, stop);
+  signal(SIGUSR1, call);
+
   doorphone_init(&opts);
 
   if (arguments.daemon == 0)
   {
-    doorphone_sequentialCall(arguments.destc, arguments.dest, arguments.timeout, &sequentialCallEnd);
+    doorphone_call(arguments.destc, arguments.dest, arguments.timeout, &sequentialCallEnd);
   }
-
-  signal(SIGINT, stop);
-  signal(SIGUSR1, call);
 
   while (running)
   {
     doorphone_loop();
 
-    if (calling)
-    {
-      calling = 0;
-      printf("Make call to %s\n", arguments.dest[0]);
-      doorphone_sequentialCall(arguments.destc, arguments.dest, arguments.timeout, &sequentialCallEnd);
-    }
+    // if (calling)
+    // {
+    //   calling = 0;
+    //   printf("Make call to %s\n", arguments.dest[0]);
+    //   doorphone_sequentialCall(arguments.destc, arguments.dest, arguments.timeout, &sequentialCallEnd);
+    // }
 
     usleep(50000);
   }
@@ -144,6 +144,10 @@ int main(int argc, char **argv)
   doorphone_destroy();
   writePid(pidFileName, -1);
   exit(0);
+}
+
+static void callList(int phonesc, char * phones[], int timeout, doorphone_call_end_cb* cb) {
+
 }
 
 static void phoneCmd(int dtmf_cmd)

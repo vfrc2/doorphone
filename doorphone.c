@@ -69,33 +69,27 @@ int doorphone_init(struct doorphone_options *opts)
   lc = linphone_core_new(&vtable, "./user.conf", NULL, NULL);
 }
 
-int doorphone_sequentialCall(int phonesc, char *phones[], int timeout, doorphone_call_end_cb *cb)
+int doorphone_call(char *phone, int timeout, doorphone_call_end_cb *cb)
 {
   if (!call || linphone_call_get_state(call) == LinphoneCallEnd)
   {
-    if (phonesc > 0)
+    LinphoneAddress *dest = linphone_core_interpret_url(lc, phone);
+    if (dest == NULL)
     {
-      LinphoneAddress *dest = linphone_core_interpret_url(lc, phones[0]);
-      if (dest == NULL)
-      {
-        return 1;
-      }
-      call = linphone_core_invite_address(lc, dest);
-      if (call == NULL)
-      {
-        printf("Could not place call to %s\n", linphone_address_as_string(dest));
-        return 2;
-      }
-      else
-      {
-        printf("Call to %s is in progress...\n", linphone_address_as_string_uri_only(dest));
-        linphone_call_ref(call);
-      }
+      return DOORPHONE_ERROR_BAD_ADDRESS;
     }
-    return 0;
+    call = linphone_core_invite_address(lc, dest);
+    if (call == NULL)
+    {
+      printf("Could not place call to %s\n", linphone_address_as_string(dest));
+      return DOORPHONE_ERROR_CANT_PLACE_CALL;
+    }
+
+    printf("Call to %s is in progress...\n", linphone_address_as_string_uri_only(dest));
+    linphone_call_ref(call);
   }
   printf("Call already in progress\n");
-  return 1;
+  return DOORPHONE_ERROR_CALL_ALREADY_IN_PROGESS;
 }
 
 int doorphone_loop()
