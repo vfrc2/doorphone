@@ -8,16 +8,16 @@ struct doorphone_options options;
 /*
  * Call state notification callback
  */
-static void call_state_changed(LinphoneCore *lc, LinphoneCall *call, LinphoneCallState cstate, const char *msg)
+static void call_state_changed(LinphoneCore *lc, LinphoneCall *_call, LinphoneCallState cstate, const char *msg)
 {
   switch (cstate)
   {
   case LinphoneCallIncomingReceived:
   {
     // char address = 'a';
-    char *address = linphone_call_get_remote_address_as_string(call);
+    char *address = linphone_call_get_remote_address_as_string(_call);
     printf("Incoming call from %s\n", address);
-    int res = linphone_core_accept_call(lc, call);
+    int res = linphone_core_accept_call(lc, _call);
     printf("Answer phone %u\n", res);
     break;
   }
@@ -34,10 +34,13 @@ static void call_state_changed(LinphoneCore *lc, LinphoneCall *call, LinphoneCal
     printf("Media streams established !\n");
     break;
   case LinphoneCallEnd:
+  case LinphoneCallReleased:
     printf("Call is terminated.\n");
+    call = NULL;
     break;
   case LinphoneCallError:
     printf("Call failure !");
+    call = NULL;
     break;
   default:
     printf("Unhandled notification %i\n", cstate);
@@ -71,7 +74,7 @@ int doorphone_init(struct doorphone_options *opts)
 
 int doorphone_sequentialCall(int phonesc, char *phones[], int timeout, doorphone_call_end_cb *cb)
 {
-  if (!call || linphone_call_get_state(call) == LinphoneCallEnd)
+  if (!call)
   {
     if (phonesc > 0)
     {
@@ -94,7 +97,7 @@ int doorphone_sequentialCall(int phonesc, char *phones[], int timeout, doorphone
     }
     return 0;
   }
-  printf("Call already in progress\n");
+  printf("Call already in progress (%i)\n", linphone_call_get_state(call));
   return 1;
 }
 
@@ -109,6 +112,7 @@ int doorphone_hangup()
   linphone_core_terminate_call(lc, call);
   /*at this stage we don't need the call object */
   linphone_call_unref(call);
+  call = NULL;
 }
 
 void doorphone_destroy()

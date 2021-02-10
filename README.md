@@ -45,6 +45,8 @@ ctl.!default {
 
 Test audio:
 
+default audio level on start?
+
 ```sh
 # record
 arecord -D plughw:CARD=Device,DEV=0 test.wav
@@ -52,8 +54,14 @@ arecord -D plughw:CARD=Device,DEV=0 test.wav
 aplay -D plughw:CARD=Device,DEV=0 test.wav 
 ```
 
+## Raspberry pi GPIO
+
+```sh
+raspi-gpio get 4
+```
 
 ## Cisco SAP2102 config
 
 Line 1 Dialplan (<102:@192.168.88.26:5061>)  
 Line 2 Dialplan (S0 <:@192.168.88.26:5060>)  
+
