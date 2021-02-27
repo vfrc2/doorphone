@@ -1,58 +1,98 @@
-#include <stdlib.h>
-#include <argp.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
+#include "./main.h"
 
-#include "./doorphone.h"
+#include <linphone/linphonecore.h>
+#include "./call_strategy_seq.h"
 
-const char *argp_program_version =
-    "0.1.0";
-const char *argp_program_bug_address =
-    "<vfrc29@gmail.com>";
+static error_t parse_opt(int key, char *arg, struct argp_state *state);
+static void halt(int signum);
+static int write_pid(char *, int);
 
-#define PID_FILE_ENV_NAME "DOORPHONE_PID_FILE"
+static void call_state_changed(LinphoneCore *lc, LinphoneCall *call, LinphoneCallState cstate, const char *message);
+static void call_strategy();
 
-/* Program documentation. */
-static char doc[] =
-    "Call sip phones from provided list, wait call ends and exit.\n\n"
-    "DEST - list of sip phones, which call to (max 10)\n\n"
-    "Can be run as daemon, when don't call list immediately, "
-    "wait for incoming calls and auto answer.\n"
-    "To call dest phones send SIGUSR1 signal to process\n"
-    "Use env for write process pid into file "
-    PID_FILE_ENV_NAME "=/var/doorphone.pid";
+#define RUN_STATE_RUNNING 1
+#define RUN_STATE_HALT 0
 
-static char args_doc[] = "[DEST...]";
+LinphoneCore *lc;
+call_strategy_base_t *strategy;
+struct arguments arguments;
 
-static void stop(int signum);
-static void call();
-static void sequentialCallEnd();
-static void phoneCmd(int dtmf_cmd);
-static int writePid(char *, int);
+volatile int running = RUN_STATE_RUNNING;
 
-struct arguments
+static struct argp argp = {options, parse_opt, args_doc, doc};
+
+int main(int argc, char **argv)
 {
-  char *dest[10];
-  char destc;
-  int daemon;
-  int timeout;
-  int verbose;
-};
+  argp_parse(&argp, argc, argv, 0, 0, &arguments);
+  LinphoneCoreVTable vtable = {0};
 
-/* The options we understand. */
-static struct argp_option options[] = {
-    // {"dest-list", 'l', "CALL_LIST", 0,
-    //  "Provide call list from file"},
-    {"daemon", 'd', 0, 0,
-     "Run in daemon mode, do not exit, answer incoming call, call on signal SIGUSR1"},
-    {"verbose", 'v', 0, 0,
-     "Produce verbose output"},
-    {0}};
+  vtable.call_state_changed = call_state_changed;
 
-static error_t
-parse_opt(int key, char *arg, struct argp_state *state)
+  lc = linphone_core_new(&vtable, "./user.conf", NULL, NULL);
+
+  strategy = call_strategy_seq_create(arguments.dest, arguments.destc, lc);
+
+  char *pidFileName = getenv(PID_FILE_ENV_NAME);
+  if (pidFileName == 0)
+  {
+    pidFileName = "./doorphone.pid";
+  }
+
+  printf("PID: %d\n", getpid());
+  write_pid(pidFileName, getpid());
+
+  signal(SIGINT, &halt);
+  signal(SIGUSR1, &call_strategy);
+
+  running = RUN_STATE_RUNNING;
+
+  if (arguments.daemon > 0)
+  {
+    call_strategy();
+  }
+
+  while (running == RUN_STATE_RUNNING)
+  {
+    linphone_core_iterate(lc);
+    usleep(50000);
+    // doorphone_hangup(currentCall);
+  }
+
+  printf("Exiting\n");
+  linphone_core_destroy(lc);
+  write_pid(pidFileName, -1);
+  exit(0);
+}
+
+static void call_state_changed(LinphoneCore *lc, LinphoneCall *call, LinphoneCallState cstate, const char *message) {
+  switch (cstate)
+  {
+  case LinphoneCallIncomingReceived:
+  {
+    // char address = 'a';
+    char *address = linphone_call_get_remote_address_as_string(call);
+    printf("Incoming call from %s\n", address);
+    int res = linphone_core_accept_call(lc, call);
+    printf("Answer phone %u\n", res);
+    break;
+  }
+  default:
+    break;
+  }
+  strategy->call_cb(strategy, lc, call, cstate, message);
+}
+
+static void call_strategy()
+{
+  strategy->call(strategy, lc);
+}
+
+static void halt(int signum)
+{
+  running = RUN_STATE_HALT;
+}
+
+static error_t parse_opt(int key, char *arg, struct argp_state *state)
 {
   /* Get the input argument from argp_parse, which we
      know is a pointer to our arguments structure. */
@@ -89,87 +129,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
   return 0;
 }
 
-static struct argp argp = {options, parse_opt, args_doc, doc};
-
-int running = 1;
-int calling = 0;
-struct arguments arguments;
-
-int main(int argc, char **argv)
-{
-  arguments.daemon = 0;
-  arguments.verbose = 0;
-  arguments.destc = 0;
-  arguments.timeout = 120;
-
-  argp_parse(&argp, argc, argv, 0, 0, &arguments);
-
-  struct doorphone_options opts;
-
-  opts.dtmfCb = &phoneCmd;
-
-  char *pidFileName = getenv(PID_FILE_ENV_NAME);
-  if (pidFileName == 0) {
-    pidFileName = "./doorphone.pid";
-  }
-
-  printf("PID: %d\n", getpid());
-  writePid(pidFileName, getpid());
-
-  doorphone_init(&opts);
-
-  if (arguments.daemon == 0)
-  {
-    doorphone_sequentialCall(arguments.destc, arguments.dest, arguments.timeout, &sequentialCallEnd);
-  }
-
-  signal(SIGINT, stop);
-  signal(SIGUSR1, call);
-
-  while (running)
-  {
-    doorphone_loop();
-
-    if (calling)
-    {
-      calling = 0;
-      printf("Make call to %s\n", arguments.dest[0]);
-      doorphone_sequentialCall(arguments.destc, arguments.dest, arguments.timeout, &sequentialCallEnd);
-    }
-
-    usleep(50000);
-  }
-
-  printf("Exiting\n");
-  doorphone_destroy();
-  writePid(pidFileName, -1);
-  exit(0);
-}
-
-static void phoneCmd(int dtmf_cmd)
-{
-  printf("Receive cmd %i", dtmf_cmd);
-}
-
-static void sequentialCallEnd()
-{
-  if (arguments.daemon == 0)
-  {
-    stop(-1);
-  }
-}
-
-static void call()
-{
-  calling = 1;
-}
-
-static void stop(int signum)
-{
-  running = 0;
-}
-
-static int writePid(char *filename, int pid)
+static int write_pid(char *filename, int pid)
 {
   FILE *fp;
 
