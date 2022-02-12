@@ -13,14 +13,16 @@ DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 _OBJ = main.o doorphone.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
-
-$(ODIR)/%.o: %.c $(DEPS)
-	$(CC) -c -o $@ $< $(CFLAGS)
-
 doorphone: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+
+$(ODIR)/%.o: %.c $(DEPS) $(ODIR)
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+$(ODIR):
+	mkdir $@
 
 .PHONY: clean
 
 clean:
-	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ 
+	rm -rf $(ODIR) *~ core $(INCDIR)/*~ 

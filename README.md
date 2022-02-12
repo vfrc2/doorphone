@@ -16,6 +16,7 @@ Use env for write process pid into file DOORPHONE_PID_FILE=/var/doorphone.pid
 
   -d, --daemon               Run in daemon mode, do not exit, answer incoming
                              call, call on signal SIGUSR1
+  -t  --timeout              call answer timeout, -1 for no timeout
   -v, --verbose              Produce verbose output
   -?, --help                 Give this help list
       --usage                Give a short usage message
@@ -24,6 +25,12 @@ Use env for write process pid into file DOORPHONE_PID_FILE=/var/doorphone.pid
 Report bugs to <vfrc29@gmail.com>.
 ```
 <!-- end -->
+
+## Dependencie
+
+```shell
+dnf install linphone-devel
+```
 
 ## Raspberry Pi config
 
