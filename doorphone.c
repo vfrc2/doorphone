@@ -3,7 +3,7 @@
 #include <linphone/linphonecore.h>
 
 LinphoneCore *lc;
-LinphoneCall *call = NULL;
+LinphoneCall *call;
 struct doorphone_options options;
 
 /*
@@ -20,32 +20,17 @@ static void call_state_changed(LinphoneCore *lc, LinphoneCall *_call,
       printf("Answer phone %u\n", res);
       break;
     }
-    case LinphoneCallOutgoingRinging:
-      printf("It is now ringing remotely !\n");
-      break;
-    case LinphoneCallOutgoingEarlyMedia:
-      printf("Receiving some early media\n");
-      break;
-    case LinphoneCallConnected:
-      printf("We are connected !\n");
-      if (options.answerCb) {
-        options.answerCb();
-      }
-      break;
-    case LinphoneCallStreamsRunning:
-      printf("Media streams established !\n");
-      break;
     case LinphoneCallEnd:
-    case LinphoneCallReleased:
+    // case LinphoneCallReleased:
       printf("Call is terminated.\n");
+      linphone_call_unref(_call);
+      call = NULL;
       if (options.callEnd) {
         options.callEnd(0);
       }
-      call = NULL;
       break;
     case LinphoneCallError:
-      printf("Call failure !");
-      call = NULL;
+      printf("Call failure!\n");
       if (options.callEnd) {
         options.callEnd(cstate);
       }
@@ -53,12 +38,6 @@ static void call_state_changed(LinphoneCore *lc, LinphoneCall *_call,
     default:
       printf("Unhandled notification %i\n", cstate);
   }
-}
-
-static void dtmf_received(LinphoneCore *lc, LinphoneCall *call, int dtmf) {
-  char key = (char)dtmf;
-  printf("Received dtmf code %c\n", key);
-  // options.dtmfCbdtmfCb(dtmf);
 }
 
 int doorphone_init(struct doorphone_options *opts) {
@@ -74,14 +53,13 @@ int doorphone_init(struct doorphone_options *opts) {
          in order to get notifications about the progress of the call.
          */
   vtable.call_state_changed = call_state_changed;
-  vtable.dtmf_received = dtmf_received;
 
   lc = linphone_core_new(&vtable, "./user.conf", NULL, NULL);
   return 0;
 }
 
 int doorphone_call(char *phone) {
-  if (!call) {
+  if (!(call)) {
     LinphoneAddress *dest = linphone_core_interpret_url(lc, phone);
     if (dest == NULL) {
       return 1;
@@ -120,4 +98,6 @@ int doorphone_hangup() {
 void doorphone_destroy() {
   linphone_core_terminate_all_calls(lc); 
   // linphone_core_destroy(lc);
+
+  printf("doorphone terminated cleanly\n");
 }

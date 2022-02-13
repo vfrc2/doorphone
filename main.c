@@ -133,6 +133,7 @@ void wait_on_call(HANDLER_ARGS);
 void call_on_enter(HANDLER_ARGS);
 void call_on_answer(HANDLER_ARGS);
 void call_on_timeout(HANDLER_ARGS);
+void call_on_hangup(HANDLER_ARGS);
 void talking_on_hangup(HANDLER_ARGS);
 void first_on_enter(HANDLER_ARGS);
 void next_on_enter(HANDLER_ARGS);
@@ -143,7 +144,7 @@ state_handler* states[7][6] = {
                  // on enter,     on call,       on answer,            on_hangup,          on_timeout        on_error
   /* INIT */    { &init_on_enter,  NULL,          NULL,                 NULL,               NULL,             NULL,            },
   /* WAIT */    { &wait_on_enter,  &wait_on_call, NULL,                 NULL,               NULL,             NULL,            },
-  /* CALL */    { &call_on_enter,  NULL,          &call_on_answer,      NULL,               &call_on_timeout, &call_on_timeout },
+  /* CALL */    { &call_on_enter,  NULL,          &call_on_answer,      &call_on_hangup,    &call_on_timeout, &call_on_timeout },
   /* TALKING */ { NULL,            NULL,          NULL,                 &talking_on_hangup, NULL,             NULL,            },
   /* FIRST */   { &first_on_enter, NULL,          NULL,                 NULL,               NULL,             NULL,            },
   /* NEXT */    { &next_on_enter,  NULL,          NULL,                 NULL,               NULL,             NULL,            },
@@ -186,8 +187,12 @@ void wait_on_call(struct arguments opts, void *data) {
 
 void call_on_enter(struct arguments opts, void *data) {
   printf("Calling to %i...\n", phoneIndex);
-  setTimeoutSec(opts.timeout);
-  doorphone_call(opts.dest[phoneIndex]);
+  int result = doorphone_call(opts.dest[phoneIndex]);
+  if (result == 0) {
+    setTimeoutSec(opts.timeout);
+  } else {
+    changeState(STATE_NEXT);
+  }
 }
 
 void call_on_answer(struct arguments opts, void *data) {
@@ -197,6 +202,9 @@ void call_on_answer(struct arguments opts, void *data) {
 
 void call_on_timeout(struct arguments opts, void *data) {
   doorphone_hangup();
+}
+
+void call_on_hangup(struct arguments opts, void *data) {
   changeState(STATE_NEXT);
 }
 
