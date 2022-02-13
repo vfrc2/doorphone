@@ -1,10 +1,9 @@
-#include "./doorphone.h"
-
 #include <linphone/linphonecore.h>
+#include "./sip.h"
 
 LinphoneCore *lc;
 LinphoneCall *call;
-struct doorphone_options options;
+sip_options options;
 
 /*
  * Call state notification callback
@@ -40,7 +39,7 @@ static void call_state_changed(LinphoneCore *lc, LinphoneCall *_call,
   }
 }
 
-int doorphone_init(struct doorphone_options *opts) {
+int sip_init(sip_options *opts) {
   LinphoneCoreVTable vtable = {0};
   options = *opts;
 
@@ -58,7 +57,7 @@ int doorphone_init(struct doorphone_options *opts) {
   return 0;
 }
 
-int doorphone_call(char *phone) {
+int sip_call(char *phone) {
   if (!(call)) {
     LinphoneAddress *dest = linphone_core_interpret_url(lc, phone);
     if (dest == NULL) {
@@ -80,14 +79,14 @@ int doorphone_call(char *phone) {
   }
 }
 
-int doorphone_loop() {
+int sip_loop() {
   linphone_core_iterate(lc);
   return 0;
 }
 
-int doorphone_hangup() {
+int sip_hangup() {
   if (call == NULL) {
-    printf("No call in progress...");
+    printf("No call in progress...\n");
     return 1;
   }
   printf("Terminating the call...\n");
@@ -95,7 +94,7 @@ int doorphone_hangup() {
   return 0;
 }
 
-void doorphone_destroy() {
+void sip_destroy() {
   linphone_core_terminate_all_calls(lc); 
   // linphone_core_destroy(lc);
 
