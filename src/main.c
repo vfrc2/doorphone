@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include "version.h"
 
 #define TRUE 1
 #define FALSE 0
@@ -11,7 +12,7 @@
 #include "./sip.h"
 #include "./app.h"
 
-const char *argp_program_version = "0.1.0";
+const char *argp_program_version = PROJECT_VER;
 const char *argp_program_bug_address = "<vfrc29@gmail.com>";
 
 /* Program documentation. */
