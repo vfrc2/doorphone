@@ -1,5 +1,7 @@
 # doorphone
 
+# THIS IS OLD use https://github.com/vfrc2/doorphone-all
+
 linphone base dorphone
 
 <!-- inject -->
